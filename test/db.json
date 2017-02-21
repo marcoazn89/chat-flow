@@ -1,1 +1,1 @@
-{"resolved_attempts":1,"prompted":0,"bg_running":1,"stack":"i:6;:s:10:\"find_match\";"}
+{"resolved_attempts":1,"prompted":0,"bg_running":false,"stack":"i:6;:s:10:\"find_match\";:s:18:\"find_match.confirm\";:s:4:\"park\";:s:3:\"pic\";:s:11:\"pic.confirm\";:s:8:\"location\";:s:6:\"pointB\";:s:6:\"pointA\";"}
