@@ -10,9 +10,12 @@ use \ChatFlow\Interfaces\IntroInterface;
 use \ChatFlow\Interfaces\StateRepositoryInterface;
 use \ChatFlow\Interfaces\BackgroundInterface;
 use \ChatFlow\Interfaces\PromptContinueInterface;
+use \ChatFlow\Interfaces\DecisionPointInterface;
 
-class GreetingState implements StateInterface, MessageInterface, ConfirmInterface, IntroInterface
+class GreetingState implements StateInterface, MessageInterface, ConfirmInterface, IntroInterface, DecisionPointInterface
 {
+    protected $decision;
+
     public function getName()
     {
         return 'greeting';
@@ -50,21 +53,26 @@ class GreetingState implements StateInterface, MessageInterface, ConfirmInterfac
         return ['yes', 'yeah', 'yep', 'yup', 'of course'];
     }
 
+    public function setDecision($value)
+    {
+        $this->decision = $value;
+    }
+
+    public function getDecision()
+    {
+        return $this->decision;
+    }
+
     public function resolve($input)
     {
         switch ((string)$input) {
             case 'park':
-                return 'park';
-                break;
             case 'submit':
-                return 'submit';
-                break;
             case 'leaving':
-                return 'leaving';
-                break;
+                $this->setDecision($input);
+                return true;
             default:
                 return false;
-                break;
         }
     }
 }
@@ -413,7 +421,7 @@ class Repo implements StateRepositoryInterface
 
 $states = [
     'greeting' => [
-        'next_state' => 'park',
+        'next_state' => ['park', 'submit'],
         'max_attempts' => 3,
         'prompt_before_cancel' => false,
         'has_cancel_message' => true,
@@ -421,6 +429,7 @@ $states = [
         'confirm_before_run' => true,
         'has_resolved_message' => true,
         'background' => false,
+        'decision_point' => true,
         'children' => []
     ],
     'park' => [
@@ -483,8 +492,7 @@ $states = [
         'has_cancel_message' => false,
         'confirm_before_run' => true,
         'has_resolved_message' => false,
-        'background' => true,
-        'enable_random' => true,
+        'background' => true,        'enable_random' => true,
         'chatty' => true,
         'children' => []
     ]

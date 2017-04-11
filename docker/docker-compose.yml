@@ -1,0 +1,35 @@
+# Docker Compose file
+# This compose file will bring up the all the services need to run the Writer Onboarding
+# Tracking in a development environment.
+
+# Docker Compose file format version
+version: '2'
+
+services:
+    # This is the container configuration for the Apache/PHP container.
+    # Apache logs will be available at the repo logs directory.
+    chat-flow:
+        # Build the container using the Dockerfile located in this directory
+        build:
+            context: .
+            dockerfile: Dockerfile
+
+        # Name assigned to the container
+        container_name: roadbot-api
+
+        environment:
+            # Set the timezone on the container
+            - TZ=America/New_York
+
+        volumes:
+            # This will make the container use the local source code on Apache, which will
+            # allow you to make changes to the code and see it on the fly.
+            - ../:/app/roadbot:Z
+
+        # Map a port in the container to the host.
+        # Format: HOST:CONTAINER
+        # E.g.: 8080:80 will map port 8080 in the host to port 80 in the container
+        # Mapping the port will allow us to access the server using localhost as host name
+        ports:
+            - '80:80'
+            - '443:443'

@@ -71,7 +71,8 @@ class StateManager
         }
 
         // Next state is defined & is not array
-        if (!empty($this->config[$state]['next_state']) && !is_array($this->config[$state]['next_state'])) {
+        if (!empty($this->config[$state]['next_state']) &&
+            !is_array($this->config[$state]['next_state'])) {
             // recursively build every state
             $this->buildStack($this->config[$state]['next_state']);
         }
@@ -105,6 +106,7 @@ class StateManager
             //die(json_encode($this->stateData));
             // Check if there are any state records for the user
             if (empty($this->stateData)) {
+                echo "Has no state data<br>";
                 if (empty($this->defaultState)) {
                     throw new \RuntimeException('A default state must be provided');
                 }
@@ -114,6 +116,7 @@ class StateManager
                 // Build a fresh stack
                 $this->buildStack($this->defaultState);
             } else {
+                echo "Has state data<br>";
                 // Get the serialized stack string
                 $stackStr = $this->stateData['stack'];
                 $this->stack->unserialize($stackStr);
@@ -222,6 +225,7 @@ class StateManager
     public function resolve($input = null)
     {
         echo print_r($this->stack) . "<br><br>";
+
         // Get the current state
         $current = $this->stack->top();
 
@@ -233,40 +237,6 @@ class StateManager
 
         ## This block invokes the state!
         $this->setState($current);
-        // If state is not defined, must be a substate
-        /*if (empty($this->config[$current])) {
-            echo "State doesn't exist, must be a confirm/prompt<br>";
-            $parts = explode('.', $current);
-
-            // Fail because it misses definitions
-            if (count($parts) !== 2) {
-                throw new \RuntimeException('State found but has no parts');
-            }
-
-            // Invoke state
-            echo "Found state, invoking parent state: {$parts[0]}<br>";
-            $this->parentState = $this->invoke($parts[0]);
-
-            echo "Invoking confirm/prompt (they are the same)<br>";
-            $this->state = $this->invoke('confirm');
-
-            switch ($parts[1]) {
-                case 'confirm':
-                    echo "Setting confirm<br>";
-                    $this->state->setName('confirm');
-                    $this->state->setActionValues($this->parentState->getConfirmValues());
-                    break;
-                case 'prompt':
-                    echo "Setting prompt<br>";
-                    $this->state->setName('prompt');
-                    $this->state->setActionValues($this->parentState->getPromptValues());
-                    break;
-            }
-        // Invoke current state
-        } else {
-            echo "State is defined, invoking<br>";
-            $this->state = $this->invoke($current);
-        }*/
 
         echo "Resolving: {$this->state->getName()}<br>";
 
@@ -292,32 +262,6 @@ class StateManager
             $this->stateData['resolved_attempts']++;
             echo "Resolved attempts is now {$this->stateData['resolved_attempts']}<br>";
 
-            // Is in confirm/prompt state
-            /*if ($name === 'confirm' || $name === 'prompt') {
-                if ($this->stateData['resolved_attempts'] === 1) {
-                    echo "End: confirm prompt<br>";
-                    $this->parentState->confirmMessage();
-                    return;
-                } else {
-                    echo "End: cancel message<br>";
-                    $this->parentState->cancelMessage();
-                    $this->stack = new \SplStack;
-                    $this->buildStack($this->defaultState);
-                    $this->resetState();
-                    return;
-                }
-            }*/
-
-            // Resolved Attempts surpassed max attempts
-
-            /*if ($name === 'confirm') {
-                echo "Poping state {$current}<br>";
-                $this->stack->pop();
-                $name = $this->parentState->getName();
-                $this->state = $this->parentState;
-                echo "Override with {$name}<br>";
-            }*/
-
             if ($name === 'prompt' || ($name === 'confirm' && $this->stateData['resolved_attempts'] === 2)) {
                 echo "Poping state {$current}<br>";
                 if ($name === 'prompt') {
@@ -334,18 +278,7 @@ class StateManager
             if (!empty($this->config[$name]) && $this->stateData['resolved_attempts'] > $this->config[$name]['max_attempts']) {
                 echo "Resolved attempts surpassed max attempts {$this->stateData['resolved_attempts']}/{$this->config[$name]['max_attempts']}<br>";
                 // Prompt before cancel
-                if (empty($prevName) && $this->config[$name]['prompt_before_cancel']) {// && !$this->stateData['prompted']) {
-                    /*echo "I dunno why this is happening<br>";
-                    if ($this->stateData['resolved_attempts'] < ($this->config[$name]['max_attempts'] + 2)) {
-                        echo "End: prompting<br>";
-                        $this->state->promptMessage();
-                        $this->stack->push("{$name}.prompt");
-                        return;
-                    } else {
-                        echo "Call top of the stack<br>";
-                        $this->stack->pop();
-                        $this->state = $this->invoke($this->stack->top());
-                    }*/
+                if (empty($prevName) && $this->config[$name]['prompt_before_cancel']) {
                     echo "End: prompting<br>";
                     $this->state->promptMessage();
                     $this->stack->push("{$name}.prompt");
@@ -364,10 +297,10 @@ class StateManager
                 return;
             }
 
-            // Is in confirm/prompt state
-            if ($name === 'confirm' || $name === 'prompt') {
+            // Is in confirm state
+            if ($name === 'confirm') {
                 if ($this->stateData['resolved_attempts'] === 1) {
-                    echo "End: confirm prompt<br>";
+                    echo "End: confirm<br>";
                     $this->parentState->confirmMessage();
                     return;
                 }
@@ -412,6 +345,10 @@ class StateManager
 
         echo "Poping state {$current}<br>";
         $this->stack->pop();
+
+        if (!empty($this->config[$name]['decision_point'])) {
+            $this->buildStack($this->state->getDecision());
+        }
 
         // No more things to do
         if ($this->stack->isEmpty()) {
