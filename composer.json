@@ -1,7 +1,7 @@
 {
     "name": "marcoazn89/chat-flow",
-    "description": "Manage chat flows easily with this library",
-    "type": "library",
+    "description": "State manager for bots",
+    "type": "php",
     "license": "MIT",
     "authors": [
         {
@@ -9,20 +9,10 @@
             "email": "hello@marcochang.com"
         }
     ],
+    "require": {},
     "autoload": {
         "psr-4": {
             "ChatFlow\\": "src"
         }
-    },
-    "require": {
-        "asyncphp/doorman": "^3.0",
-        "league/event": "^2.1",
-        "amphp/thread": "^0.8.1",
-        "cron/cron": "^1.0",
-        "guzzlehttp/promises": "^1.2",
-        "react/child-process": "^0.4.1"
-    },
-    "require-dev": {
-        "phpunit/phpunit": "*"
     }
 }
