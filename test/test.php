@@ -65,7 +65,7 @@ $stateManager->registerState('greeting', function () use ($stateManager) {
             },
             State::RESOLVER_STATE => function ($input) use ($stateManager) {
                 switch ((string)$input) {
-                    case 'park':
+                    case 'park_intro':
                     case 'submit':
                     case 'leaving':
                         $stateManager->setDecision($input);
@@ -95,9 +95,6 @@ $stateManager->registerState('park_intro', function () use ($stateManager) {
                 } else {
                     return false;
                 }
-            },
-            State::RESOLVER_STATE => function ($input) use ($stateManager) {
-                return true;
             }
         ]
     ]);
@@ -111,9 +108,6 @@ $stateManager->registerState('park_outro', function () use ($stateManager) {
             }
         ],
         'resolvers' => [
-            State::RESOLVER_STATE => function ($input) use ($stateManager) {
-                return true;
-            }
         ]
     ]);
 }, ['max_attempts' => 4, 'next_state' => 'find_match']);
@@ -164,9 +158,6 @@ $stateManager->registerState('location_intro', function () use ($stateManager) {
         'resolvers' => [
             State::RESOLVER_CONFIRM => function ($input) {
                 return in_array($input, ['yes', 'yeah', 'yep', 'yup', 'of course']);
-            },
-            State::RESOLVER_STATE => function ($input) use ($stateManager) {
-                return true;
             }
         ]
     ]);
@@ -180,9 +171,6 @@ $stateManager->registerState('location_outro', function () use ($stateManager) {
             }
         ],
         'resolvers' => [
-            State::RESOLVER_STATE => function ($input) use ($stateManager) {
-                return true;
-            }
         ]
     ]);
 }, ['max_attempts' => 4]);
@@ -278,6 +266,6 @@ $stateManager->registerState('find_match', function () {
     ]);
 }, ['max_attempts' => 1]);
 
-$stateManager->setDefaultState('park_intro');
+$stateManager->setDefaultState('greeting');
 
 $stateManager->run($_GET['input']);

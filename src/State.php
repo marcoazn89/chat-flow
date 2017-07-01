@@ -81,8 +81,6 @@ class State
 
         if (empty($config['resolvers'])) {
             throw new InvalidArgumentException("'resolvers' array is missing");
-        } elseif (empty($config['resolvers'][self::RESOLVER_STATE])) {
-            throw new InvalidArgumentException("'" . self::RESOLVER_STATE . "' is missing");
         } else {
             $this->resolvers = array_merge($this->resolvers, $config['resolvers']);
         }
@@ -133,7 +131,11 @@ class State
     {
         $resolver = $resolver !== '' ? $resolver : $this->currentResolver;
 
-        return $this->resolvers[$resolver]($input);
+        if (empty($this->resolvers[$resolver]) && $resolver === self::RESOLVER_STATE) {
+            return true;
+        } else {
+            return $this->resolvers[$resolver]($input);
+        }
     }
 
     public function hasAction(string $action): bool
