@@ -76,9 +76,9 @@ $stateManager->registerState('greeting', function () use ($stateManager) {
             }
         ]
     ]);
-}, ['max_attempts' => 3, 'next_state' => ['park', 'submit']]);
+}, ['max_attempts' => 3, 'next_state' => ['park_intro', 'submit']]);
 
-$stateManager->registerState('park', function () use ($stateManager) {
+$stateManager->registerState('park_intro', function () use ($stateManager) {
     return new State([
         'actions' => [
             State::CONFIRM => function ($data) {
@@ -86,26 +86,10 @@ $stateManager->registerState('park', function () use ($stateManager) {
             },
             State::INTRO => function ($data) {
                 echo "I need few things from you first<br>";
-            },
-            State::SUCCESS => function ($data) {
-                echo "Thank you for your cooperation!<br>";
-            },
-            State::FAIL => function ($data) {
-                echo "Hit me up if you need help parking<br>";
-            },
-            State::PROMPT => function ($data) {
-                echo "I'm guessing you don't want to park..is that correct?";
             }
         ],
         'resolvers' => [
             State::RESOLVER_CONFIRM => function ($input) {
-                if (in_array($input, ['yes', 'yeah', 'yep', 'yup', 'of course'])) {
-                    return true;
-                } else {
-                    return false;
-                }
-            },
-            State::RESOLVER_PROMPT => function ($input) {
                 if (in_array($input, ['yes', 'yeah', 'yep', 'yup', 'of course'])) {
                     return true;
                 } else {
@@ -117,9 +101,57 @@ $stateManager->registerState('park', function () use ($stateManager) {
             }
         ]
     ]);
-}, ['max_attempts' => 4, 'next_state' => 'find_match', 'children' => ['location', 'pic']]);
+}, ['max_attempts' => 4, 'next_state' => 'park_outro', 'children' => ['location_intro', 'pic']]);
 
-$stateManager->registerState('location', function () use ($stateManager) {
+$stateManager->registerState('park_outro', function () use ($stateManager) {
+    return new State([
+        'actions' => [
+            State::SUCCESS => function ($data) {
+                echo "Thank you for your cooperation! (park_outro)<br>";
+            }
+        ],
+        'resolvers' => [
+            State::RESOLVER_STATE => function ($input) use ($stateManager) {
+                return true;
+            }
+        ]
+    ]);
+}, ['max_attempts' => 4, 'next_state' => 'find_match']);
+
+$stateManager->registerState('submit', function () use ($stateManager) {
+    return new State([
+        'actions' => [
+            State::CONFIRM => function ($data) {
+                echo "Let's submit!?";
+            },
+            State::MESSAGE => function ($data) {
+                $messages = ['submit1','submit2'];
+
+                echo "{$messages[$data['resolved_attempts'] - 1]}<br>";
+            },
+            State::SUCCESS => function ($data) {
+                echo "Yay thanks!";
+            },
+            State::FAIL => function ($data) {
+                echo "Okay nvm<br>";
+            }
+        ],
+        'resolvers' => [
+            State::RESOLVER_CONFIRM => function ($input) {
+                if (in_array($input, ['yes', 'yeah', 'yep', 'yup', 'of course'], true)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            },
+            State::RESOLVER_STATE => function ($input) use ($stateManager) {
+                return $input === 'submit';
+            }
+        ]
+    ]);
+}, ['max_attempts' => 2]);
+
+$stateManager->registerState('location_intro', function () use ($stateManager) {
     return new State([
         'actions' => [
             State::CONFIRM => function ($data) {
@@ -127,13 +159,7 @@ $stateManager->registerState('location', function () use ($stateManager) {
             },
             State::INTRO => function ($data) {
                 echo "Your location will help a lot of people<br>";
-            },
-            State::SUCCESS => function ($data) {
-                echo "Awesome you got a ton of brownie points for that one!<br>";
-            },
-            State::FAIL => function ($data) {
-                echo "Hit me up if you need help parking<br>";
-            },
+            }
         ],
         'resolvers' => [
             State::RESOLVER_CONFIRM => function ($input) {
@@ -144,7 +170,22 @@ $stateManager->registerState('location', function () use ($stateManager) {
             }
         ]
     ]);
-}, ['max_attempts' => 4, 'children' => ['point_a', 'point_b']]);
+}, ['max_attempts' => 4, 'next_state' => 'location_outro', 'children' => ['point_a', 'point_b']]);
+
+$stateManager->registerState('location_outro', function () use ($stateManager) {
+    return new State([
+        'actions' => [
+            State::SUCCESS => function ($data) {
+                echo "Awesome you got a ton of brownie points for that one!<br>";
+            }
+        ],
+        'resolvers' => [
+            State::RESOLVER_STATE => function ($input) use ($stateManager) {
+                return true;
+            }
+        ]
+    ]);
+}, ['max_attempts' => 4]);
 
 $location = function () {
     return new State([
@@ -237,6 +278,6 @@ $stateManager->registerState('find_match', function () {
     ]);
 }, ['max_attempts' => 1]);
 
-$stateManager->setDefaultState('greeting');
+$stateManager->setDefaultState('park_intro');
 
 $stateManager->run($_GET['input']);

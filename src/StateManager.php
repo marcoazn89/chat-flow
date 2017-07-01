@@ -4,8 +4,10 @@ declare(strict_types=1);
 namespace ChatFlow;
 
 use ChatFlow\StateRepositoryInterface;
-use Ds\Stack;
+use Ds\Deque;
 use Closure;
+use InvalidArgumentException;
+use RuntimeException;
 
 class StateManager
 {
@@ -16,7 +18,8 @@ class StateManager
         'resolved_attempts' => 0,
         'prompted' => false,
         'bg_running' => false,
-        'current_resolver' => ''
+        'current_resolver' => '',
+        'current_state' => null
     ];
     protected $registeredStates = [];
     protected $state;
@@ -24,11 +27,11 @@ class StateManager
     protected $userId;
     protected $parentState;
     protected $decision;
+    protected $isSetup = false;
 
     public function __construct(StateRepositoryInterface $repo)
     {
         $this->repo = $repo;
-        $this->stack = new \SplStack();
     }
 
     /**
@@ -39,26 +42,32 @@ class StateManager
      */
     protected function setup(): void
     {
-        $stateData = $this->repo->getStateData($this->userId);
+        if (!$this->isSetup) {
+            $stateData = $this->repo->getStateData($this->userId);
 
-        // Check if there are any state records for the user
-        if (empty($stateData)) {
-            //echo "Has no state data<br>";
-            if (empty($this->defaultState)) {
-                throw new \RuntimeException('A default state must be provided');
+            // Check if there are any state records for the user
+            if (empty($stateData)) {
+                //echo "Has no state data<br>";
+                if (empty($this->defaultState)) {
+                    throw new RuntimeException('A default state must be provided');
+                }
+
+                $this->deque = new Deque;
+
+                // Build a fresh stack
+                $this->buildStack($this->defaultState);
+            } else {
+
+                // Get the serialized stack string
+                $this->deque = unserialize($stateData['stack']);
+
+                // No need to copy the serialized stack
+                unset($stateData['stack']);
+
+                $this->stateData = array_merge($this->stateData, $stateData);
             }
 
-            // Build a fresh stack
-            $this->buildStack($this->defaultState);
-        } else {
-
-            // Get the serialized stack string
-            $this->stack->unserialize($stateData['stack']);
-
-            // No need to copy the serialized stack
-            unset($stateData['stack']);
-
-            $this->stateData = array_merge($this->stateData, $stateData);
+            $this->isSetup = true;
         }
     }
 
@@ -73,7 +82,7 @@ class StateManager
     {
         // Fail state isn't found
         if (!isset($this->config[$state])) {
-            throw new \InvalidArgumentException("State {$state} not found");
+            throw new InvalidArgumentException("State {$state} not found");
         }
 
         // Next state is defined & is not array
@@ -82,9 +91,6 @@ class StateManager
             // recursively build every state
             $this->buildStack($this->config[$state]['next_state']);
         }
-
-        // Push state
-        $this->stack->push($state);
 
         // If state has children
         if (!empty($this->config[$state]['children'])) {
@@ -95,7 +101,41 @@ class StateManager
             }
         }
 
+        $this->deque->push($state);
     }
+
+    /*protected function buildStack(string $state, bool $reverse = false): void
+    {
+        // Fail state isn't found
+        if (!isset($this->config[$state])) {
+            throw new InvalidArgumentException("State {$state} not found");
+        }
+
+        // Next state is defined & is not array
+        if (!empty($this->config[$state]['next_state']) &&
+            !is_array($this->config[$state]['next_state'])) {
+            // recursively build every state
+            $this->buildStack($this->config[$state]['next_state'], $reverse);
+        }
+
+        // Push state to front
+        if ($reverse)  {
+            $this->deque->push($state);
+        // Push state to back
+        } else {
+            $this->deque->unshift($state);
+        }
+
+        // If state has children
+        if (!empty($this->config[$state]['children'])) {
+            // Add every child to the stack
+            for ($i = count($this->config[$state]['children']) - 1; $i >=0; $i--) {
+                $childName = $this->config[$state]['children'][$i];
+                $this->buildStack($childName);
+            }
+        }
+
+    }*/
 
     /**
      * Set the default state
@@ -108,7 +148,7 @@ class StateManager
         if (isset($this->config[$name])) {
             $this->defaultState = $name;
         } else {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Unable to register state {$name} because it wasn't found"
             );
         }
@@ -160,11 +200,7 @@ class StateManager
     protected function isDecisionPoint(string $state): bool
     {
         // Next state is defined & is not array
-        if (empty($this->config[$state]['next_state']) || !is_array($this->config[$state]['next_state'])) {
-            return false;
-        } else {
-            return true;
-        }
+        return isset($this->config[$state]['next_state']) && is_array($this->config[$state]['next_state']);
     }
 
     /**
@@ -178,7 +214,7 @@ class StateManager
     public function invoke(string $state): State
     {
         if (!isset($this->registeredStates[$state])) {
-            throw new \RuntimeException("State {$state} is not registered");
+            throw new RuntimeException("State {$state} is not registered");
         }
 
         if ($this->registeredStates[$state] instanceof State) {
@@ -187,6 +223,7 @@ class StateManager
             $this->registeredStates[$state] = $this->registeredStates[$state]();
             $this->registeredStates[$state]->setName($state);
             $this->registeredStates[$state]->setMaxAttempts($this->config[$state]['max_attempts']);
+            $this->registeredStates[$state]->setInterruptible(!empty($this->config[$state]['interruptible']));
             $this->setResolver($this->registeredStates[$state], $this->stateData['current_resolver']);
 
             return $this->registeredStates[$state];
@@ -199,7 +236,7 @@ class StateManager
      * @param State  $state
      * @param string $resolver
      */
-    protected function setResolver(State $state, string $resolver = ''): void
+    protected function setResolver(State $state, string $resolver): void
     {
         if (empty($resolver)) {
             if ($state->hasResolver($state::RESOLVER_CONFIRM)) {
@@ -212,115 +249,6 @@ class StateManager
         }
 
         $state->setResolver($this->stateData['current_resolver']);
-    }
-
-    /**
-     * Resolve the state
-     *
-     * @param  mixed $input
-     * @return void
-     */
-    public function resolve($input = null): void
-    {
-        // Get the current state
-        $current = $this->stack->top();
-
-        // Invoking current state
-        $state = $this->invoke($current);
-
-        // If resolved
-        if ($result = $state->resolve($input)) {
-            switch ($state->getResolver()) {
-                case $state::RESOLVER_CONFIRM:
-                case $state::RESOLVER_PROMPT:
-                    $state->continueAction($this->stateData);
-                    $this->setResolver($state, $state::RESOLVER_STATE);
-                    $this->stateData['resolved_attempts'] = 0;
-                    break;
-                case $state::RESOLVER_STATE:
-                    $state->successAction($this->stateData);
-                    $this->stack->pop();
-                    $this->resetState();
-
-                    if ($this->isDecisionPoint($state->getName())) {
-                        $this->buildStack($this->getDecision());
-                    } elseif ($this->stack->isEmpty()) {
-                        $this->stack = new \SplStack;
-                        $this->buildStack($this->defaultState);
-                        return;
-                    }
-                    break;
-            }
-
-            $this->resolve($result);
-            return;
-        } else {
-            $justFail = false;
-
-            // Has chatty state
-            // Chatty never increases resolved attempts
-            if ($state->hasResolver($state::RESOLVER_CHATTY)
-                && $state->resolve($input, $state::RESOLVER_CHATTY)) {
-                return;
-            } elseif ($state->getResolver() === $state::RESOLVER_CONFIRM && $this->stateData['resolved_attempts'] === 1) {
-                $justFail = true;
-            }
-
-            $this->stateData['resolved_attempts']++;
-            if ($state->isAttemptAllowed($this->stateData['resolved_attempts'] - 1) && !$justFail) {
-                if ($state->getResolver() === $state::RESOLVER_CONFIRM) {
-                    $state->confirmAction($this->stateData);
-                    return;
-                } else {
-                    if ($this->stateData['resolved_attempts'] === 1) {
-                        $state->introAction($this->stateData);
-                    }
-                    $state->messageAction($this->stateData);
-
-                    $state->backgroundAction($this->stateData);
-
-                    $this->setResolver($state, $state::RESOLVER_STATE);
-                    return;
-                }
-            } elseif ($state->getResolver() === $state::RESOLVER_STATE) {
-                if ($state->hasResolver($state::RESOLVER_PROMPT)) {
-                    $this->setResolver($state, $state::PROMPT);
-                    $state->promptAction($this->stateData);
-                    return;
-                }
-            }
-
-            $state->failAction($this->stateData);
-
-            $this->stack = new \SplStack;
-            $this->buildStack($this->defaultState);
-            $this->resetState();
-            return;
-        }
-    }
-
-    /**
-     * Reset the state
-     *
-     * @return void
-     */
-    protected function resetState(): void
-    {
-        $this->stateData['resolved_attempts'] = 0;
-        $this->stateData['prompted'] = 0;
-        $this->stateData['bg_running'] = false;
-        $this->stateData['current_resolver'] = '';
-    }
-
-    /**
-     * Save state data in the repository provided
-     *
-     * @return void
-     */
-    protected function sync(): void
-    {
-        $this->stateData['stack'] = $this->stack->serialize();
-        $this->repo->saveStateData($this->stateData);
     }
 
     /**
@@ -345,6 +273,135 @@ class StateManager
     }
 
     /**
+     * Reset the state
+     *
+     * @return void
+     */
+    protected function resetState(): void
+    {
+        $this->stateData['resolved_attempts'] = 0;
+        $this->stateData['prompted'] = 0;
+        $this->stateData['bg_running'] = false;
+        $this->stateData['current_resolver'] = '';
+    }
+
+    /**
+     * Cancel move to another state
+     * The default state is used if no state is specified
+     *
+     * @param  null|string $state
+     * @return void
+     */
+    public function cancel(?string $state = null): void
+    {
+        $this->deque->clear();
+        $this->buildStack($state ?? $this->defaultState);
+        $this->resetState();
+    }
+
+    /**
+     * Resolve the state
+     *
+     * @param  mixed $input
+     * @return void
+     */
+    public function resolve($input = null): void
+    {
+        // Get the current state
+        $current = $this->deque->last();
+
+        // Invoking current state
+        $state = $this->invoke($current);
+
+        // If resolved
+        if ($result = $state->resolve($input)) {
+            $resolver = $state->getResolver();
+            switch ($resolver) {
+                case $state::RESOLVER_CONFIRM:
+                case $state::RESOLVER_PROMPT:
+                    $state->continueAction($this->stateData);
+
+                    if ($resolver === $state::RESOLVER_CONFIRM) {
+                        $state->introAction($this->stateData);
+                    }
+
+                    $this->setResolver($state, $state::RESOLVER_STATE);
+                    $this->stateData['resolved_attempts'] = 0;
+                    break;
+                case $state::RESOLVER_STATE:
+                    $state->successAction($this->stateData);
+                    $this->deque->pop();
+                    $this->resetState();
+
+                    if ($this->isDecisionPoint($state->getName())) {
+                        $this->buildStack($this->getDecision());
+                    } elseif ($this->deque->isEmpty()) {
+                        $this->buildStack($this->defaultState);
+                        return;
+                    }
+                    break;
+            }
+
+            $this->resolve();
+            return;
+        // If not resolved
+        } else {
+            $justFail = false;
+
+            // Has chatty state
+            // Chatty never increases resolved attempts
+            if ($state->hasResolver($state::RESOLVER_CHATTY)
+                && $state->resolve($input, $state::RESOLVER_CHATTY)) {
+                return;
+            } elseif ($state->getResolver() === $state::RESOLVER_CONFIRM && $this->stateData['resolved_attempts'] === 1) {
+                $justFail = true;
+            }
+
+            $this->stateData['resolved_attempts']++;
+            if ($state->isAttemptAllowed($this->stateData['resolved_attempts'] - 1) && !$justFail) {
+                if ($state->getResolver() === $state::RESOLVER_CONFIRM) {
+                    $state->confirmAction($this->stateData);
+                    return;
+                } else {
+                    if ($this->stateData['resolved_attempts'] === 1 &&
+                        !$state->hasResolver($state::RESOLVER_CONFIRM)) {
+                        $state->introAction($this->stateData);
+                    }
+
+                    $state->messageAction($this->stateData);
+
+                    $state->backgroundAction($this->stateData);
+
+                    $this->setResolver($state, $state::RESOLVER_STATE);
+                    return;
+                }
+            } elseif ($state->getResolver() === $state::RESOLVER_STATE) {
+                if ($state->hasResolver($state::RESOLVER_PROMPT)) {
+                    $this->setResolver($state, $state::PROMPT);
+                    $state->promptAction($this->stateData);
+                    return;
+                }
+            }
+
+            $state->failAction($this->stateData);
+            $this->cancel();
+            return;
+        }
+    }
+
+    /**
+     * Save state data in the repository provided
+     *
+     * @return void
+     */
+    protected function sync(): void
+    {
+        $this->stateData['current_state'] = $this->deque->last();
+        $this->stateData['stack'] = serialize($this->deque);
+        $this->repo->saveStateData($this->stateData);
+    }
+
+    /**
      * Run the state manager
      *
      * @param  mixed $input  Input to resolve
@@ -358,4 +415,40 @@ class StateManager
 
         $this->sync();
     }
+
+    /**
+     * Return current state
+     *
+     * @return string
+     */
+    public function getCurrentState(): string
+    {
+        $current = $this->repo->getStateData($this->userId)['current_state'];
+        return $current ?? $this->defaultState;
+    }
+
+    public function pushState(string $state, bool $interrupt): void
+    {
+        if ($interrupt) {
+            $this->buildStack($state);
+            $this->resolve($input);
+            $this->sync();
+        } else {
+            // use Deque!
+            // put it in some kind of queue so that it can be added to the end???
+            // the resolver when cancelling or running out of items has to add it in?
+//            $this->deque->unshift($state)
+        }
+    }
+
+    // Want a way to update the stack:
+    // What if we decide a state is no longer needed that has 0 dependencies
+    // What if it has dependencies
+    // What if we want to change the name
+    // maybe by just loading the stack off of the current state is enough?
+    //
+    // would a subscription system based on user states work with this state manager?
+    // How to make it?
+    // Would a bg job for some triggered tasks be part of that too??
 }
+
