@@ -104,7 +104,7 @@ How does it work?
 A state of a conversation can contain many parts (all are optional):
 - Confirm: To confirm the state of the conversation should happen. Example `Are you able to provide me your address now?`
 - Intro: Gives the conversation context. Example: `I will ask you three questions so please be ready`
-- Message: The many messages the bot can send when communication is not succesful. Example: `Please send me your street name`, `That didn't look like a street`, 'Are you sure that's a street name?`
+- Message: The many messages the bot can send when communication is not succesful. Example: `Please send me your street name`, `That didn't look like a street`, `Are you sure that's a street name?`
 - Prompt: After many failures, the bot can prompt the user to give up. Example: `Okay, I think your street is invalid. Do you still want to keep trying?`
 - Success: A message to send when the state of conversation succeeded. Example: `Great! Thank you for providing that information`
 - Fail: A message to send when the state of the conversation couldn't be resolved. Example: `Well, hit me up later if you find that address`
