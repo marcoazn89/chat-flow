@@ -122,9 +122,10 @@ Config parameters:
 Why are chat-bots hard to program?
 ----------------------------------
 Chat-bots can be easy to program when a question is always followed by an answer such as
-
+```
 Bot: What's your name?
 User: My name is Foo
+```
 
 However, it can be difficult when your user decides to reply with multiple messages:
 ```
