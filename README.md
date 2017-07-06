@@ -14,7 +14,7 @@ Test with Docker
 	cd docker
     docker build -t "chatflow:chatflow" .
 	docker run -tid -p 80:80 -v <full path to root of the project>:/var/www/html --name chatflow chatflow:chatflow
-	Load this url http://localhost/test/test.php
+	Load this url http://localhost/test/test.php?input=
 
 Get started:
 ------------
