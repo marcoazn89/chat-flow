@@ -1,0 +1,18 @@
+{
+    "name": "marcoazn89/chat-flow",
+    "description": "State manager for bots",
+    "type": "php",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Marco Chang",
+            "email": "hello@marcochang.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "ChatFlow\\": "src"
+        }
+    }
+}

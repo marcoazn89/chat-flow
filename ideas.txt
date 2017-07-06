@@ -1,0 +1,28 @@
+request -> 309 Gold St, Brooklyn, NY
+state calls current state and passes the input / if there is no current state the state manager figures what the type of input is and call the respective state
+the resolver does all the validation
+
+
+The state manager can have a "decision point state" where it verifies what the user was trying to do, and also it can have an option to just trigger the state without verification
+
+Figure out:
+- How to handle random inputs?
+- How would a user implement a few initial states that react to user input like hi, help, etc
+- prompt should take attempts as well
+- after recovering from prompt, send a 'recovery message'
+- enable_random to handle unexpected input. States that have confirm and prompt when they fail they will go to random when they shouldn't...perhaps make an exception to run in states !== to confirm and prompt
+- chatty should work regardless of attempts
+- add an expiration date to the state so that if someone comes back days later the bot can run a "handleExpire()"
+- the background action: the user can decide to insert some values in the db that will be called by background action...
+- backgroind action must have a parameter in the config or interface that indicates frequency
+- the cron that comes with the lib will run every x amount of seconds configured by the dev, but will look at the frequency in order to figure how often to call it. It will store somewhere 'last_time_called' and check if its time to do it again.
+- The resolve will just try to resolve the state (do whatever the bg function needs to do)
+- Failed attempts will be used to call the message(attempts)
+
+
+---------
+2/19/2017
+---------
+- Set a forget time so that the bot doesn't get stuck in an unfinished work flow
+- Allow random input so that people can say help anytime for instance or send a picture and know they want to report parking...Return back to original state for help?
+- Set a buffer so that the bot doesn't do the wrong thing if someone sends multiple messages by mistake
