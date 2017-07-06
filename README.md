@@ -136,6 +136,14 @@ User: is
 User: Foo
 ```
 
+Also, how to handle typos?
+```
+Bot: How old are you?
+User: I'mgak
+Both: I don't know what that means. What's your age again?
+User: 100
+```
+
 Harder when a question has multiple sub-questions:
 ```
 Bot: Let's get your address
