@@ -99,6 +99,26 @@ $stateManager->setUp(1, 'greeting');
 $stateManager->run($_GET['input']);
 ```
 
+How does it work?
+-----------------
+A state of a conversation can contain many parts (all are optional):
+- Confirm: To confirm the state of the conversation should happen. Example `Are you able to provide me your address now?`
+- Intro: Gives the conversation context. Example: `I will ask you three questions so please be ready`
+- Message: The many messages the bot can send when communication is not succesful. Example: `Please send me your street name`, `That didn't look like a street`, 'Are you sure that's a street name?`
+- Prompt: After many failures, the bot can prompt the user to give up. Example: `Okay, I think your street is invalid. Do you still want to keep trying?`
+- Success: A message to send when the state of conversation succeeded. Example: `Great! Thank you for providing that information`
+- Fail: A message to send when the state of the conversation couldn't be resolved. Example: `Well, hit me up later if you find that address`
+- Continue: A message that is triggered when a confirmation was possitive. `Okay, let's give that address another shot since you want to keep trying`
+
+Also, when the bot is expecting user input it needs to resolve it or fail. Confirm, Prompt, and the State itself expect input and resolve to true and false.
+
+Config parameters:
+- max_attempts: Number of times the bot will try to resolve a state. The number of attempts can be used to trigger different messages every time
+- expiration: A bot message can be set to expire after certain timeframe. This allows the bot to not wait for user input for a long time
+- next_state: The state(s) to follow
+- children: Sub states
+
+
 Why chat-bots are hard to program?
 ----------------------------------
 Chat-bots can be easy to program when a question is always followed by an answer such as
