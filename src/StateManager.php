@@ -6,6 +6,9 @@ namespace ChatFlow;
 use ChatFlow\StateRepositoryInterface;
 use Ds\Deque;
 use Closure;
+use DateTime;
+use DateTimeZone;
+use DateInterval;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -37,59 +40,56 @@ class StateManager
     /**
      * Set up the state manager
      *
+     * @param int $userId
+     * @param string $defaultState
      * @throws RuntimeException
      * @return void
      */
-    protected function setup(): void
+    public function setUp(int $userId, string $defaultState): void
     {
-        if (!$this->isSetup) {
-            $stateData = $this->repo->getStateData($this->userId);
+        $this->userId = $userId;
+        $this->defaultState = $defaultState;
+        $stateData = $this->repo->getStateData($this->userId);
+        $this->resetState();
 
-            // Check if there are any state records for the user
-            if (empty($stateData)) {
-                //echo "Has no state data<br>";
-                if (empty($this->defaultState)) {
-                    throw new RuntimeException('A default state must be provided');
-                }
+        // Check if there are any state records for the user
+        if (empty($stateData) || $this->isStateExpired($stateData['current_state'], $stateData['timestamp'])) {
+            $this->deque = new Deque;
 
-                $this->deque = new Deque;
+            // Build a fresh stack
+            $this->buildDeque($this->deque, $defaultState);
+        } else {
 
-                // Build a fresh stack
-                $this->buildStack($this->defaultState);
-            } else {
+            // Get the serialized stack string
+            $this->deque = unserialize($stateData['stack']);
 
-                // Get the serialized stack string
-                $this->deque = unserialize($stateData['stack']);
+            // No need to copy the serialized stack
+            unset($stateData['stack']);
 
-                // No need to copy the serialized stack
-                unset($stateData['stack']);
-
-                $this->stateData = array_merge($this->stateData, $stateData);
-            }
-
-            $this->isSetup = true;
+            $this->stateData = array_merge($this->stateData, $stateData);
         }
     }
 
     /**
      * Build the stack recursively which contains all states
      *
-     * @param  sting $state State starting point
+     * @param Deque $deque Deque to be populated
+     * @param string $state State starting point
      * @throws InvalidArgumentException
-     * @return void
+     * @return Deque
      */
-    protected function buildStack(string $state): void
+    protected function buildDeque(Deque $deque, string $state): Deque
     {
         // Fail state isn't found
         if (!isset($this->config[$state])) {
-            throw new InvalidArgumentException("State {$state} not found");
+            throw new InvalidArgumentException("State {$state} was not registered");
         }
 
         // Next state is defined & is not array
         if (!empty($this->config[$state]['next_state']) &&
             !is_array($this->config[$state]['next_state'])) {
             // recursively build every state
-            $this->buildStack($this->config[$state]['next_state']);
+            $deque = $this->buildDeque($deque, $this->config[$state]['next_state']);
         }
 
         // If state has children
@@ -97,45 +97,14 @@ class StateManager
             // Add every child to the stack
             for ($i = count($this->config[$state]['children']) - 1; $i >=0; $i--) {
                 $childName = $this->config[$state]['children'][$i];
-                $this->buildStack($childName);
+                $deque = $this->buildDeque($deque, $childName);
             }
         }
 
-        $this->deque->push($state);
+        $deque->push($state);
+
+        return $deque;
     }
-
-    /*protected function buildStack(string $state, bool $reverse = false): void
-    {
-        // Fail state isn't found
-        if (!isset($this->config[$state])) {
-            throw new InvalidArgumentException("State {$state} not found");
-        }
-
-        // Next state is defined & is not array
-        if (!empty($this->config[$state]['next_state']) &&
-            !is_array($this->config[$state]['next_state'])) {
-            // recursively build every state
-            $this->buildStack($this->config[$state]['next_state'], $reverse);
-        }
-
-        // Push state to front
-        if ($reverse)  {
-            $this->deque->push($state);
-        // Push state to back
-        } else {
-            $this->deque->unshift($state);
-        }
-
-        // If state has children
-        if (!empty($this->config[$state]['children'])) {
-            // Add every child to the stack
-            for ($i = count($this->config[$state]['children']) - 1; $i >=0; $i--) {
-                $childName = $this->config[$state]['children'][$i];
-                $this->buildStack($childName);
-            }
-        }
-
-    }*/
 
     /**
      * Set the default state
@@ -152,16 +121,6 @@ class StateManager
                 "Unable to register state {$name} because it wasn't found"
             );
         }
-    }
-
-    /**
-     * Set the user whose state data will be used
-     *
-     * @param void
-     */
-    public function setUser($userId): void
-    {
-        $this->userId = $userId;
     }
 
     /**
@@ -295,7 +254,7 @@ class StateManager
     public function cancel(?string $state = null): void
     {
         $this->deque->clear();
-        $this->buildStack($state ?? $this->defaultState);
+        $this->buildDeque($this->deque, $state ?? $this->defaultState);
         $this->resetState();
     }
 
@@ -334,9 +293,11 @@ class StateManager
                     $this->resetState();
 
                     if ($this->isDecisionPoint($state->getName())) {
-                        $this->buildStack($this->getDecision());
+                        $this->buildDeque($this->deque, $this->getDecision());
                     } elseif ($this->deque->isEmpty()) {
-                        $this->buildStack($this->defaultState);
+                        $this->buildDeque($this->deque, $this->defaultState);
+                        return;
+                    } elseif ($this->deque->last() === $this->defaultState) {
                         return;
                     }
                     break;
@@ -397,8 +358,14 @@ class StateManager
     protected function sync(): void
     {
         $this->stateData['current_state'] = $this->deque->last();
+        $this->stateData['timestamp'] = $this->getCurrentTimestamp();
         $this->stateData['stack'] = serialize($this->deque);
         $this->repo->saveStateData($this->stateData);
+    }
+
+    protected function getCurrentTimestamp(): int
+    {
+        return (new DateTime('now', new \DateTimeZone('UTC')))->getTimestamp();
     }
 
     /**
@@ -409,8 +376,6 @@ class StateManager
      */
     public function run($input = null): void
     {
-        $this->setup();
-
         $this->resolve($input);
 
         $this->sync();
@@ -423,32 +388,63 @@ class StateManager
      */
     public function getCurrentState(): string
     {
-        $current = $this->repo->getStateData($this->userId)['current_state'];
-        return $current ?? $this->defaultState;
+        $stateData = $this->repo->getStateData($this->userId);
+        return $stateData['current_state'] ?? $this->defaultState;
     }
 
-    public function pushState(string $state, bool $interrupt): void
+    /**
+     * Add state to the deque.
+     * A state can interrupt all the other states or wait until current
+     * states are completed
+     *
+     * @param string $state
+     * @param bool   $interrupt
+     */
+    public function addState(string $state, bool $interrupt): void
     {
+        $stateDeque = $this->buildDeque(new Deque, $state);
+
         if ($interrupt) {
-            $this->buildStack($state);
-            $this->resolve($input);
-            $this->sync();
+            $this->deque = $this->deque->merge($stateDeque->toArray());
+            $this->resetState();
+            $this->resolve();
         } else {
-            // use Deque!
-            // put it in some kind of queue so that it can be added to the end???
-            // the resolver when cancelling or running out of items has to add it in?
-//            $this->deque->unshift($state)
+            $this->deque = $stateDeque->merge($this->deque->toArray());
         }
+
+        $this->sync();
     }
 
-    // Want a way to update the stack:
-    // What if we decide a state is no longer needed that has 0 dependencies
-    // What if it has dependencies
-    // What if we want to change the name
-    // maybe by just loading the stack off of the current state is enough?
-    //
-    // would a subscription system based on user states work with this state manager?
-    // How to make it?
-    // Would a bg job for some triggered tasks be part of that too??
-}
+    /**
+     * Check if a state is expired
+     * The date interval for the expiration comes from the config and
+     * must be in ISO-8601 format
+     *
+     * @param  string  $state     Name of the state to check for expiration
+     * @param  int     $timestamp Timestamp recorded
+     * @return boolean
+     */
+    protected function isStateExpired(string $state, int $timestamp): bool
+    {
+        return !empty($this->config[$state]['expiration']) &&
+        $this->hasDateExpired($timestamp, $this->config[$state]['expiration']);
+    }
 
+
+    /**
+     * Check if a date has passed
+     *
+     * @param  int     $timestamp Last recorded date for the state
+     * @param  string  $expTimespan ISO-8601 duration
+     * @return boolean
+     */
+    protected function hasDateExpired(int $timestamp, string $expTimespan): bool
+    {
+        $now = new DateTime('now', new DateTimeZone('UTC'));
+        $messageDate = new DateTime();
+        $messageDate->setTimestamp($timestamp);
+        $messageDate->add(new DateInterval($expTimespan));
+
+        return $messageDate < $now;
+    }
+}

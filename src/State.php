@@ -79,9 +79,8 @@ class State
             $this->actions = array_merge($this->actions, $config['actions']);
         }
 
-        if (empty($config['resolvers'])) {
-            throw new InvalidArgumentException("'resolvers' array is missing");
-        } else {
+        // Merge resolvers
+        if (!empty($config['resolvers'])) {
             $this->resolvers = array_merge($this->resolvers, $config['resolvers']);
         }
     }

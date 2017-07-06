@@ -108,7 +108,7 @@ $stateManager->registerState('park_outro', function () use ($stateManager) {
         'resolvers' => [
         ]
     ]);
-}, ['max_attempts' => 4]);
+}, ['max_attempts' => 4, 'next_state' => 'find_match']);
 
 $stateManager->registerState('submit', function () use ($stateManager) {
     return new State([
@@ -151,9 +151,6 @@ $stateManager->registerState('location_intro', function () use ($stateManager) {
             },
             State::INTRO => function ($data) {
                 echo "Your location will help a lot of people<br>";
-            },
-            State::FAIL => function ($data) {
-                echo "Hit me up if you need help parking<br>";
             }
         ],
         'resolvers' => [
@@ -269,4 +266,4 @@ $stateManager->registerState('find_match', function () {
 
 $stateManager->setUp(1, 'greeting');
 
-$stateManager->run($_GET['input']);
+$stateManager->addState('location_intro', true);
