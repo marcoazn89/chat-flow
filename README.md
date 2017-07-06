@@ -119,7 +119,7 @@ Config parameters:
 - children: Sub states
 
 
-Why chat-bots are hard to program?
+Why are chat-bots hard to program?
 ----------------------------------
 Chat-bots can be easy to program when a question is always followed by an answer such as
 
