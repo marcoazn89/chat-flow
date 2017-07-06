@@ -148,7 +148,7 @@ User: 1010101
 Bot: Thank you for providing your address! <- Hard
 ```
 
-You might think that the bot should always send "Thank you for providing your address!" after the obtaining the zip code, but what if you want to add more sub-questions to the address? Then you will have to move around every time you change the order of questions. If at this point you are thinking you can use some data structure, we are heading in the right direction!
+You might think that the bot should always send "Thank you for providing your address!" after the obtaining the zip code, but what if you want to add more sub-questions to the address? Then you will have to move it around every time you change the order of questions. If at this point you are thinking you can use some data structure, we are heading in the right direction!
 
 What about when your conversations can have multiple paths? Yes, a lot harder!
 ```
