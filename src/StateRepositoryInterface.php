@@ -5,5 +5,5 @@ interface StateRepositoryInterface
 {
 	public function getStateData(int $userId): ?array;
 
-    public function saveStateData(array $data): void;
+    public function saveStateData(int $userId, array $data): void;
 }

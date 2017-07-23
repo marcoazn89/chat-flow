@@ -22,7 +22,8 @@ class StateManager
         'prompted' => false,
         'bg_running' => false,
         'current_resolver' => '',
-        'current_state' => null
+        'current_state' => null,
+        'data' => []
     ];
     protected $registeredStates = [];
     protected $state;
@@ -53,7 +54,7 @@ class StateManager
         $this->resetState();
 
         // Check if there are any state records for the user
-        if (empty($stateData) || $this->isStateExpired($stateData['current_state'], $stateData['timestamp'])) {
+        if (empty($stateData) || (!empty($stateData['current_state']) && $this->isStateExpired($stateData['current_state'], $stateData['timestamp']))) {
             $this->deque = new Deque;
 
             // Build a fresh stack
@@ -126,12 +127,16 @@ class StateManager
     /**
      * Add data that can be used later for actions and resolvers
      *
-     * @param string $key
-     * @param mixed $value
+     * @param array $data
      */
-    public function addData(string $key, $value): void
+    public function addData(array $data): void
     {
-        $this->stateData[$key] = $value;
+        $this->stateData['data'] = array_merge($this->stateData['data'], $data);
+    }
+
+    public function getData(?string $key = null): array
+    {
+        return $key !== null ? $this->stateData[$key] : $this->stateData;
     }
 
     /**
@@ -226,7 +231,7 @@ class StateManager
      *
      * @return string
      */
-    public function getDecision(): string
+    public function getDecision(): ?string
     {
         return $this->decision;
     }
@@ -293,7 +298,14 @@ class StateManager
                     $this->resetState();
 
                     if ($this->isDecisionPoint($state->getName())) {
-                        $this->buildDeque($this->deque, $this->getDecision());
+                        $decision = $this->getDecision();
+
+                        if ($decision === null) {
+                            $this->cancel();
+                            return;
+                        } else {
+                            $this->buildDeque($this->deque, $decision);
+                        }                        
                     } elseif ($this->deque->isEmpty()) {
                         $this->buildDeque($this->deque, $this->defaultState);
                         return;
@@ -360,7 +372,7 @@ class StateManager
         $this->stateData['current_state'] = $this->deque->last();
         $this->stateData['timestamp'] = $this->getCurrentTimestamp();
         $this->stateData['stack'] = serialize($this->deque);
-        $this->repo->saveStateData($this->stateData);
+        $this->repo->saveStateData($this->userId, $this->stateData);
     }
 
     protected function getCurrentTimestamp(): int
